@@ -1,0 +1,7 @@
+package: github.com/sgotti/gvc
+import:
+- package: github.com/Masterminds/glide
+  subpackages:
+  - cfg
+  - path
+- package: github.com/spf13/cobra
