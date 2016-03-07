@@ -13,9 +13,9 @@ import (
 )
 
 var cmd = &cobra.Command{
-	Use:   "gvc",
+	Use:   "glide-vc",
 	Short: "glide vendor cleaner",
-	Run:   gvc,
+	Run:   glidevc,
 }
 
 type config struct {
@@ -36,7 +36,7 @@ func main() {
 	cmd.Execute()
 }
 
-func gvc(cmd *cobra.Command, args []string) {
+func glidevc(cmd *cobra.Command, args []string) {
 	lock, err := LoadGlideLockfile(".")
 	if err != nil {
 		fmt.Errorf("Could not load lockfile: %v", err)

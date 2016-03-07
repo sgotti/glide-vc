@@ -26,16 +26,15 @@ Install glide.
 glide vendor cleaner
 
 Usage:
-  gvc [flags]
+  glide-vc [flags]
 
 Flags:
-      --debug        enable debug logging
       --dryrun       just output what will be removed
-      --keep-all     keep all files inside a package (instead of keeping only not test .go files)
+      --keep-all     keep all files of needed packages (instead of keeping only not test .go files)
       --keep-tests   keep also go test files
 ```
 
-You have to run `gvc` inside your current project directory.
+You have to run `glide-vc`, or (if glide is installed) `glide vc` inside your current project directory.
 
 To see what it'll do use the `--dryrun` option.
 
@@ -44,24 +43,24 @@ To see what it'll do use the `--dryrun` option.
 Tests removal of all unneeded packages keeping only the .go (also removing tests) files.
 
 ```
-gvc --dryrun
+glide-vc --dryrun
 ```
 
 Do it
 
 ```
-gvc
+glide-vc
 ```
 
 
 Remove all the unneeded packages but keep all files for the needed ones:
 
 ```
-gvc --keep-all
+glide-vc --keep-all
 ```
 
 Remove all the unneeded packages but keep the go and test files for the needed ones:
 
 ```
-gvc --keep-tests
+glide-vc --keep-tests
 ```
