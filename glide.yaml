@@ -1,4 +1,4 @@
-package: github.com/sgotti/gvc
+package: github.com/sgotti/glide-vc
 import:
 - package: github.com/Masterminds/glide
   subpackages:
