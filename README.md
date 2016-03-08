@@ -8,10 +8,9 @@ For a detailed explanation on why Glide doesn't do this see [here](http://engine
 
 ## Description
 
-This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep only `.go` (but not the tests) files of the packages listed in the `glide.lock` file.
-If you want to also keep the test files of the needed packages you can provide the `--keep-tests` option.
-If you want to keep all the files of the needed packages you can provide the `--keep-all` option.
-
+This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep all the files provided by packages listed in the `glide.lock` file.
+If you want to keep only go (including tests) files you can provide the `--only-go` option.
+If you want to remove also the go test files you can add the `--no-tests` option.
 
 ## Build
 
@@ -29,18 +28,18 @@ Usage:
   glide-vc [flags]
 
 Flags:
-      --dryrun       just output what will be removed
-      --keep-all     keep all files of needed packages (instead of keeping only not test .go files)
-      --keep-tests   keep also go test files
+      --dryrun     just output what will be removed
+      --no-tests   remove also go test files (requires --only-go)
+      --only-go    keep only go files (including go test files)
 ```
 
 You have to run `glide-vc`, or (if glide is installed) `glide vc` inside your current project directory.
 
 To see what it'll do use the `--dryrun` option.
 
-### Example.
+### Examples
 
-Tests removal of all unneeded packages keeping only the .go (also removing tests) files.
+Tests removal of all unneeded packages.
 
 ```
 glide-vc --dryrun
@@ -53,14 +52,14 @@ glide-vc
 ```
 
 
-Remove all the unneeded packages but keep all files for the needed ones:
+Keep only go (including tests) file.
 
 ```
-glide-vc --keep-all
+glide-vc --only-go
 ```
 
-Remove all the unneeded packages but keep the go and test files for the needed ones:
+Keep only non test go files.
 
 ```
-glide-vc --keep-tests
+glide-vc --only-go --no-tests
 ```

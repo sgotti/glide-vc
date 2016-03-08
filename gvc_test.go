@@ -110,6 +110,7 @@ devImports: []
 				{"host01/org01/repo01/subpkg01", true},
 				{"host01/org01/repo01/subpkg01/file02.go", false},
 			},
+			opts: options{onlyGo: true, noTests: true},
 		},
 		{
 			tree:     tree,
@@ -124,7 +125,7 @@ devImports: []
 				{"host01/org01/repo01/subpkg01/file02.go", false},
 				{"host01/org01/repo01/subpkg01/file02_test.go", false},
 			},
-			opts: options{keepTests: true},
+			opts: options{onlyGo: true},
 		},
 		{
 			tree:     tree,
@@ -141,7 +142,6 @@ devImports: []
 				{"host01/org01/repo01/subpkg01/file02.go", false},
 				{"host01/org01/repo01/subpkg01/file02_test.go", false},
 			},
-			opts: options{keepAll: true},
 		},
 	}
 
