@@ -1,0 +1,15 @@
+language: go
+
+go:
+  - 1.5
+  - 1.6
+  - tip
+
+sudo: false
+
+install:
+  - go get
+
+script:
+  - GO15VENDOREXPERIMENT=1 go test ./...
+

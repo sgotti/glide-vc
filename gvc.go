@@ -18,18 +18,18 @@ var cmd = &cobra.Command{
 	Run:   glidevc,
 }
 
-type config struct {
+type options struct {
 	dryrun    bool
 	keepAll   bool
 	keepTests bool
 }
 
-var conf config
+var opts options
 
 func init() {
-	cmd.PersistentFlags().BoolVar(&conf.dryrun, "dryrun", false, "just output what will be removed")
-	cmd.PersistentFlags().BoolVar(&conf.keepAll, "keep-all", false, "keep all files of needed packages (instead of keeping only not test .go files)")
-	cmd.PersistentFlags().BoolVar(&conf.keepTests, "keep-tests", false, "keep also go test files")
+	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
+	cmd.PersistentFlags().BoolVar(&opts.keepAll, "keep-all", false, "keep all files of needed packages (instead of keeping only not test .go files)")
+	cmd.PersistentFlags().BoolVar(&opts.keepTests, "keep-tests", false, "keep also go test files")
 }
 
 func main() {
@@ -37,33 +37,38 @@ func main() {
 }
 
 func glidevc(cmd *cobra.Command, args []string) {
-	lock, err := LoadGlideLockfile(".")
-	if err != nil {
-		fmt.Errorf("Could not load lockfile: %v", err)
+	if err := cleanup(".", opts); err != nil {
+		fmt.Print(err)
 		os.Exit(1)
 	}
+	return
+}
 
+func cleanup(path string, opts options) error {
+	lock, err := LoadGlideLockfile(path)
+	if err != nil {
+		return fmt.Errorf("Could not load lockfile: %v", err)
+	}
+
+	// The package list already have the path converted to the os specific
+	// path separator, needed for future comparisons.
 	pkgList := []string{}
 	// TODO(sgotti) Should we also consider devImports?
 	for _, imp := range lock.Imports {
 		if len(imp.Subpackages) > 0 {
 			for _, sp := range imp.Subpackages {
+				// This converts pkg separator "/" to os specific separator
 				pkgList = append(pkgList, filepath.Join(imp.Name, sp))
 			}
 		}
 		// TODO(sgotti) we cannot skip the base import if it has subpackages
 		// because glide doesn't write "." as a subpackage, otherwise if some
 		// files in the base import are needed they will be removed.
-		pkgList = append(pkgList, imp.Name)
+
+		// This converts pkg separator "/" to os specific separator
+		pkgList = append(pkgList, filepath.FromSlash(imp.Name))
 	}
 
-	if err := cleanup(pkgList); err != nil {
-		fmt.Printf("cleanup error: %v", err)
-		os.Exit(1)
-	}
-}
-
-func cleanup(pkgList []string) error {
 	vpath, err := gpath.Vendor()
 	if err != nil {
 		return err
@@ -93,10 +98,10 @@ func cleanup(pkgList []string) error {
 		// If the file's parent directory is a needed package, keep it.
 		for _, name := range pkgList {
 			if !info.IsDir() && filepath.Dir(localPath) == name {
-				if conf.keepAll {
+				if opts.keepAll {
 					keep = true
 					continue
-				} else if conf.keepTests {
+				} else if opts.keepTests {
 					if strings.HasSuffix(path, ".go") {
 						keep = true
 						continue
@@ -107,7 +112,7 @@ func cleanup(pkgList []string) error {
 			}
 		}
 
-		// If a directory is the needed package or a parent then keep it
+		// If a directory is a needed package or a parent then keep it
 		if keep == false && info.IsDir() {
 			for _, name := range pkgList {
 				if strings.HasPrefix(name, localPath) {
@@ -138,8 +143,7 @@ func cleanup(pkgList []string) error {
 
 	// Walk vendor directory
 	searchPath = vpath + string(os.PathSeparator)
-	err = filepath.Walk(searchPath, fn)
-	if err != nil {
+	if err = filepath.Walk(searchPath, fn); err != nil {
 		return err
 	}
 
@@ -151,7 +155,7 @@ func cleanup(pkgList []string) error {
 		} else {
 			fmt.Printf("Removing unused file: %s\n", localPath)
 		}
-		if !conf.dryrun {
+		if !opts.dryrun {
 			rerr := os.RemoveAll(marked.path)
 			if rerr != nil {
 				return rerr
