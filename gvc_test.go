@@ -77,14 +77,32 @@ type testData struct {
 func TestCleanup(t *testing.T) {
 
 	tree := []FileInfo{
+		// Needed dependency
 		{"host01/org01/repo01/README", false},
 		{"host01/org01/repo01/LICENSE", false},
 		{"host01/org01/repo01/file01.go", false},
 		{"host01/org01/repo01/file01_test.go", false},
 		{"host01/org01/repo01/subpkg01/file02.go", false},
 		{"host01/org01/repo01/subpkg01/file02_test.go", false},
-		{"host01/org01/repo01/vendor/host01/org02/repo01/file03.go", false},
-		{"host01/org01/repo01/vendor/host01/org02/repo01/file03_test.go", false},
+		// Unneeded project inside nested vendor
+		{"host01/org01/repo01/vendor/host03/org03/repo03/file05.go", false},
+		{"host01/org01/repo01/vendor/host03/org03/repo03/file05_test.go", false},
+		// Needed project inside nested vendor
+		{"host01/org01/repo01/vendor/host02/org02/repo02/README", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/LICENSE", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/file03.go", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/file03_test.go", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04.go", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04_test.go", false},
+		// Unneeded nested vendor inside needed project in nested vendor
+		{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/vendor/host04/org04/repo04/file04.go", false},
+		{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/vendor/host04/org04/repo04/file04_test.go", false},
+		{"host02/org02/repo02/README", false},
+		{"host02/org02/repo02/LICENSE", false},
+		{"host02/org02/repo02/file03.go", false},
+		{"host02/org02/repo02/file03_test.go", false},
+		{"host02/org02/repo02/subpkg02/file04.go", false},
+		{"host02/org02/repo02/subpkg02/file04_test.go", false},
 	}
 
 	lockdata := `
@@ -95,6 +113,11 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
   subpackages:
   - subpkg01
+- name: host02/org02/repo02
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+  subpackages:
+  - subpkg02
+devImports: []
 devImports: []
 `
 
@@ -109,6 +132,19 @@ devImports: []
 				{"host01/org01/repo01/file01.go", false},
 				{"host01/org01/repo01/subpkg01", true},
 				{"host01/org01/repo01/subpkg01/file02.go", false},
+				{"host01/org01/repo01/vendor", true},
+				{"host01/org01/repo01/vendor/host02", true},
+				{"host01/org01/repo01/vendor/host02/org02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/file03.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04.go", false},
+				{"host02", true},
+				{"host02/org02", true},
+				{"host02/org02/repo02", true},
+				{"host02/org02/repo02/file03.go", false},
+				{"host02/org02/repo02/subpkg02", true},
+				{"host02/org02/repo02/subpkg02/file04.go", false},
 			},
 			opts: options{onlyGo: true, noTests: true},
 		},
@@ -124,6 +160,23 @@ devImports: []
 				{"host01/org01/repo01/subpkg01", true},
 				{"host01/org01/repo01/subpkg01/file02.go", false},
 				{"host01/org01/repo01/subpkg01/file02_test.go", false},
+				{"host01/org01/repo01/vendor", true},
+				{"host01/org01/repo01/vendor/host02", true},
+				{"host01/org01/repo01/vendor/host02/org02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/file03.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/file03_test.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04_test.go", false},
+				{"host02", true},
+				{"host02/org02", true},
+				{"host02/org02/repo02", true},
+				{"host02/org02/repo02/file03.go", false},
+				{"host02/org02/repo02/file03_test.go", false},
+				{"host02/org02/repo02/subpkg02", true},
+				{"host02/org02/repo02/subpkg02/file04.go", false},
+				{"host02/org02/repo02/subpkg02/file04_test.go", false},
 			},
 			opts: options{onlyGo: true},
 		},
@@ -141,6 +194,27 @@ devImports: []
 				{"host01/org01/repo01/subpkg01", true},
 				{"host01/org01/repo01/subpkg01/file02.go", false},
 				{"host01/org01/repo01/subpkg01/file02_test.go", false},
+				{"host01/org01/repo01/vendor", true},
+				{"host01/org01/repo01/vendor/host02", true},
+				{"host01/org01/repo01/vendor/host02/org02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/README", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/LICENSE", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/file03.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/file03_test.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02", true},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04.go", false},
+				{"host01/org01/repo01/vendor/host02/org02/repo02/subpkg02/file04_test.go", false},
+				{"host02", true},
+				{"host02/org02", true},
+				{"host02/org02/repo02", true},
+				{"host02/org02/repo02/README", false},
+				{"host02/org02/repo02/LICENSE", false},
+				{"host02/org02/repo02/file03.go", false},
+				{"host02/org02/repo02/file03_test.go", false},
+				{"host02/org02/repo02/subpkg02", true},
+				{"host02/org02/repo02/subpkg02/file04.go", false},
+				{"host02/org02/repo02/subpkg02/file04_test.go", false},
 			},
 		},
 	}

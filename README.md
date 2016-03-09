@@ -1,16 +1,19 @@
 # Glide vendor cleaner
 
-## Important Note!!! ##
+## Important Note!!!
+
 Before using this tool be sure that cleaning and commiting vendored directories to VCS does not violate the licenses of the packages you're vendoring.
 
 For a detailed explanation on why Glide doesn't do this see [here](http://engineeredweb.com/blog/2016/go-why-not-strip-unused-pkgs/)
-
 
 ## Description
 
 This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep all the files provided by packages listed in the `glide.lock` file.
 If you want to keep only go (including tests) files you can provide the `--only-go` option.
 If you want to remove also the go test files you can add the `--no-tests` option.
+
+By default `glide-vc` doesn't remove nested vendor directories.
+Doing this will change compilation and runtime behavior of your project because only the top level vendored dependencies will be used for compilation. If these are at a different revision (from the one provided inside nested vendor directories) they can cause compilation problems or runtime misbehiaviours. On the other side, keeping nested vendor directories can cause compilation problems like [this one](https://github.com/mattfarina/golang-broken-vendor)
 
 ## Build
 
