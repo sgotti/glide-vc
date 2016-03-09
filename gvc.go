@@ -19,17 +19,17 @@ var cmd = &cobra.Command{
 }
 
 type options struct {
-	dryrun    bool
-	keepAll   bool
-	keepTests bool
+	dryrun  bool
+	onlyGo  bool
+	noTests bool
 }
 
 var opts options
 
 func init() {
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
-	cmd.PersistentFlags().BoolVar(&opts.keepAll, "keep-all", false, "keep all files of needed packages (instead of keeping only not test .go files)")
-	cmd.PersistentFlags().BoolVar(&opts.keepTests, "keep-tests", false, "keep also go test files")
+	cmd.PersistentFlags().BoolVar(&opts.onlyGo, "only-go", false, "keep only go files (including go test files)")
+	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-go)")
 }
 
 func main() {
@@ -37,6 +37,11 @@ func main() {
 }
 
 func glidevc(cmd *cobra.Command, args []string) {
+	if opts.noTests && !opts.onlyGo {
+		fmt.Printf("--no-tests requires --only-go")
+		os.Exit(1)
+	}
+
 	if err := cleanup(".", opts); err != nil {
 		fmt.Print(err)
 		os.Exit(1)
@@ -98,15 +103,17 @@ func cleanup(path string, opts options) error {
 		// If the file's parent directory is a needed package, keep it.
 		for _, name := range pkgList {
 			if !info.IsDir() && filepath.Dir(localPath) == name {
-				if opts.keepAll {
-					keep = true
-					continue
-				} else if opts.keepTests {
-					if strings.HasSuffix(path, ".go") {
-						keep = true
-						continue
+				if opts.onlyGo {
+					if opts.noTests {
+						if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+							keep = true
+						}
+					} else {
+						if strings.HasSuffix(path, ".go") {
+							keep = true
+						}
 					}
-				} else if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+				} else {
 					keep = true
 				}
 			}
