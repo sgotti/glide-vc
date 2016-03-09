@@ -82,13 +82,17 @@ func cleanup(path string, opts options) error {
 		return fmt.Errorf("cannot fine vendor dir")
 	}
 
-	var searchPath string
-	var markForDelete []struct {
+	type pathData struct {
 		path  string
 		isDir bool
 	}
+	var searchPath string
+	markForKeep := map[string]pathData{}
+	markForDelete := []pathData{}
 
-	fn := func(path string, info os.FileInfo, err error) error {
+	// Walk vendor directory
+	searchPath = vpath + string(os.PathSeparator)
+	err = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -100,9 +104,17 @@ func cleanup(path string, opts options) error {
 		localPath := strings.TrimPrefix(path, searchPath)
 		keep := false
 
+		lastVendorPath, err := getLastVendorPath(localPath)
+		if err != nil {
+			return err
+		}
+		if lastVendorPath == "" {
+			lastVendorPath = localPath
+		}
+
 		// If the file's parent directory is a needed package, keep it.
 		for _, name := range pkgList {
-			if !info.IsDir() && filepath.Dir(localPath) == name {
+			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
 				if opts.onlyGo {
 					if opts.noTests {
 						if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
@@ -119,38 +131,62 @@ func cleanup(path string, opts options) error {
 			}
 		}
 
-		// If a directory is a needed package or a parent then keep it
+		// If a directory is a needed package then keep it
 		if keep == false && info.IsDir() {
 			for _, name := range pkgList {
-				if strings.HasPrefix(name, localPath) {
+				if name == lastVendorPath {
 					keep = true
 				}
 			}
 		}
 
-		// Avoid marking for removal childs of already marked directories
-		for _, marked := range markForDelete {
-			if marked.isDir {
-				if strings.HasPrefix(filepath.Dir(path), marked.path) {
-					return nil
+		if keep {
+			// Keep also all parents of current path
+			curpath := localPath
+			for {
+				curpath = filepath.Dir(curpath)
+				if curpath == "." {
+					break
 				}
+				if _, ok := markForKeep[curpath]; ok {
+					// Already marked for keep
+					break
+				}
+				markForKeep[curpath] = pathData{curpath, true}
 			}
-		}
 
-		if keep == false {
-			// Mark for deletion
-			markForDelete = append(markForDelete, struct {
-				path  string
-				isDir bool
-			}{path, info.IsDir()})
+			// Mark for keep
+			markForKeep[localPath] = pathData{localPath, info.IsDir()}
 		}
 
 		return nil
+	})
+	if err != nil {
+		return err
 	}
 
-	// Walk vendor directory
-	searchPath = vpath + string(os.PathSeparator)
-	if err = filepath.Walk(searchPath, fn); err != nil {
+	// Generate deletion list
+	err = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			// Ignore not existant files due to previous removal of the parent directory
+			if !os.IsNotExist(err) {
+				return err
+			}
+		}
+		localPath := strings.TrimPrefix(path, searchPath)
+		if localPath == "" {
+			return nil
+		}
+		if _, ok := markForKeep[localPath]; !ok {
+			markForDelete = append(markForDelete, pathData{path, info.IsDir()})
+			if info.IsDir() {
+				// skip directory contents since it has been marked for removal
+				return filepath.SkipDir
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 
@@ -171,6 +207,19 @@ func cleanup(path string, opts options) error {
 	}
 
 	return nil
+}
+
+func getLastVendorPath(path string) (string, error) {
+	curpath := path
+	for {
+		if curpath == "." {
+			return "", nil
+		}
+		if filepath.Base(curpath) == "vendor" {
+			return filepath.Rel(curpath, path)
+		}
+		curpath = filepath.Dir(curpath)
+	}
 }
 
 // LoadLockfile loads the contents of a glide.lock file.
