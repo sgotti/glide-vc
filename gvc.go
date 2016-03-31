@@ -19,9 +19,10 @@ var cmd = &cobra.Command{
 }
 
 type options struct {
-	dryrun  bool
-	onlyGo  bool
-	noTests bool
+	dryrun       bool
+	onlyGo       bool
+	noTests      bool
+	noLegalFiles bool
 }
 
 var opts options
@@ -30,6 +31,7 @@ func init() {
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
 	cmd.PersistentFlags().BoolVar(&opts.onlyGo, "only-go", false, "keep only go files (including go test files)")
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-go)")
+	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
 }
 
 func main() {
@@ -58,8 +60,12 @@ func cleanup(path string, opts options) error {
 	// The package list already have the path converted to the os specific
 	// path separator, needed for future comparisons.
 	pkgList := []string{}
+	repoList := []string{}
 	// TODO(sgotti) Should we also consider devImports?
 	for _, imp := range lock.Imports {
+		// This converts pkg separator "/" to os specific separator
+		repoList = append(repoList, filepath.FromSlash(imp.Name))
+
 		if len(imp.Subpackages) > 0 {
 			for _, sp := range imp.Subpackages {
 				// This converts pkg separator "/" to os specific separator
@@ -102,7 +108,6 @@ func cleanup(path string, opts options) error {
 		}
 
 		localPath := strings.TrimPrefix(path, searchPath)
-		keep := false
 
 		lastVendorPath, err := getLastVendorPath(localPath)
 		if err != nil {
@@ -112,8 +117,9 @@ func cleanup(path string, opts options) error {
 			lastVendorPath = localPath
 		}
 
-		// If the file's parent directory is a needed package, keep it.
+		keep := false
 		for _, name := range pkgList {
+			// If the file's parent directory is a needed package, keep it.
 			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
 				if opts.onlyGo {
 					if opts.noTests {
@@ -127,6 +133,17 @@ func cleanup(path string, opts options) error {
 					}
 				} else {
 					keep = true
+				}
+			}
+		}
+
+		// Keep all the legal files inside top repo dir and required package dirs
+		for _, name := range append(repoList, pkgList...) {
+			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
+				if !opts.noLegalFiles {
+					if IsLegalFile(path) {
+						keep = true
+					}
 				}
 			}
 		}
@@ -234,4 +251,46 @@ func LoadGlideLockfile(base string) (*cfg.Lockfile, error) {
 	}
 
 	return lock, nil
+}
+
+// File lists and code took from https://github.com/client9/gosupplychain/blob/master/license.go
+
+// LicenseFilePrefix is a list of filename prefixes that indicate it
+//  might contain a software license
+var LicenseFilePrefix = []string{
+	"licence", // UK spelling
+	"license", // US spelling
+	"copying",
+	"unlicense",
+	"copyright",
+	"copyleft",
+}
+
+// LegalFileSubstring are substrings that indicate the file is likely
+// to contain some type of legal declaration.  "legal" is often used
+// that it might moved to LicenseFilePrefix
+var LegalFileSubstring = []string{
+	"legal",
+	"notice",
+	"disclaimer",
+	"patent",
+	"third-party",
+	"thirdparty",
+}
+
+// IsLegalFile returns true if the file is likely to contain some type
+// of of legal declaration or licensing information
+func IsLegalFile(path string) bool {
+	lowerfile := strings.ToLower(filepath.Base(path))
+	for _, prefix := range LicenseFilePrefix {
+		if strings.HasPrefix(lowerfile, prefix) {
+			return true
+		}
+	}
+	for _, substring := range LegalFileSubstring {
+		if strings.Index(lowerfile, substring) != -1 {
+			return true
+		}
+	}
+	return false
 }
