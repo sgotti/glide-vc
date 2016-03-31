@@ -8,8 +8,8 @@ go:
 sudo: false
 
 install:
-  - go get
+  - GO15VENDOREXPERIMENT=1 go build
 
 script:
-  - GO15VENDOREXPERIMENT=1 go test ./...
+  - GO15VENDOREXPERIMENT=1 go test .
 
