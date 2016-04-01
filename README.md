@@ -19,13 +19,9 @@ By default `glide-vc` doesn't remove:
 * nested vendor directories.
 Doing this will change compilation and runtime behavior of your project because only the top level vendored dependencies will be used for compilation. If these are at a different revision (from the one provided inside nested vendor directories) they can cause compilation problems or runtime misbehiaviours. On the other side, keeping nested vendor directories can cause compilation problems like [this one](https://github.com/mattfarina/golang-broken-vendor)
 
-## Build
+## Install
 
-Install glide.
-
-`glide install` or `glide install --cache` or `glide install --cache-gopath` etc... (as you are more accustomed)
-
-`go build` or `go install`
+`go get github.com/sgotti/glide-vc`
 
 ## Run
 ```

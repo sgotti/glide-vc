@@ -14,9 +14,9 @@ install:
 - go env
 
 build_script:
-- go get
+- go build
 
 test_script:
-- go test ./...
+- go test .
 
 deploy: off
