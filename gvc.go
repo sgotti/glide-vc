@@ -20,17 +20,24 @@ var cmd = &cobra.Command{
 
 type options struct {
 	dryrun       bool
-	onlyGo       bool
+	onlyCode     bool
 	noTests      bool
 	noLegalFiles bool
 }
 
-var opts options
+var (
+	opts         options
+	codeSuffixes = []string{".go", ".c", ".s", ".S", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
+)
+
+const (
+	goTestSuffix = "_test.go"
+)
 
 func init() {
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
-	cmd.PersistentFlags().BoolVar(&opts.onlyGo, "only-go", false, "keep only go files (including go test files)")
-	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-go)")
+	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only go files (including go test files)")
+	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
 }
 
@@ -39,8 +46,8 @@ func main() {
 }
 
 func glidevc(cmd *cobra.Command, args []string) {
-	if opts.noTests && !opts.onlyGo {
-		fmt.Printf("--no-tests requires --only-go")
+	if opts.noTests && !opts.onlyCode {
+		fmt.Printf("--no-tests requires --only-code")
 		os.Exit(1)
 	}
 
@@ -121,13 +128,13 @@ func cleanup(path string, opts options) error {
 		for _, name := range pkgList {
 			// If the file's parent directory is a needed package, keep it.
 			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
-				if opts.onlyGo {
-					if opts.noTests {
-						if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
-							keep = true
-						}
-					} else {
-						if strings.HasSuffix(path, ".go") {
+				if opts.onlyCode {
+					if opts.noTests && strings.HasSuffix(path, "_test.go") {
+						keep = false
+						continue
+					}
+					for _, suffix := range codeSuffixes {
+						if strings.HasSuffix(path, suffix) {
 							keep = true
 						}
 					}
