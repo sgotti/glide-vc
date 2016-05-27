@@ -122,12 +122,14 @@ func cleanup(path string, opts options) error {
 			// If the file's parent directory is a needed package, keep it.
 			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
 				if opts.onlyGo {
+					validGoSuffix := strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".s") // also include assembly files
+
 					if opts.noTests {
-						if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+						if validGoSuffix && !strings.HasSuffix(path, "_test.go") {
 							keep = true
 						}
 					} else {
-						if strings.HasSuffix(path, ".go") {
+						if validGoSuffix {
 							keep = true
 						}
 					}
