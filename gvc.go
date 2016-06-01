@@ -23,11 +23,11 @@ type options struct {
 	onlyCode     bool
 	noTests      bool
 	noLegalFiles bool
+	codeSuffixes []string
 }
 
 var (
-	opts         options
-	codeSuffixes = []string{".go", ".c", ".s", ".S", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
+	opts options
 )
 
 const (
@@ -35,10 +35,13 @@ const (
 )
 
 func init() {
+	opts.codeSuffixes = []string{".go", ".c", ".s", ".S", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
+
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
-	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only go files (including go test files)")
+	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only code files (including go test files)")
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
+	cmd.PersistentFlags().StringSliceVar(&opts.codeSuffixes, "suffixes", opts.codeSuffixes, "list of file suffixes treated as code")
 }
 
 func main() {
@@ -133,7 +136,7 @@ func cleanup(path string, opts options) error {
 						keep = false
 						continue
 					}
-					for _, suffix := range codeSuffixes {
+					for _, suffix := range opts.codeSuffixes {
 						if strings.HasSuffix(path, suffix) {
 							keep = true
 						}

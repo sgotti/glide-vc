@@ -171,7 +171,7 @@ devImports: []
 				{"host02/org02/repo02/subpkg02", true},
 				{"host02/org02/repo02/subpkg02/file04.go", false},
 			},
-			opts: options{onlyCode: true, noTests: true, noLegalFiles: true},
+			opts: options{onlyCode: true, noTests: true, noLegalFiles: true, codeSuffixes: opts.codeSuffixes},
 		},
 
 		{
@@ -214,7 +214,7 @@ devImports: []
 				{"host02/org02/repo02/subpkg02/LICENSE", false},
 				{"host02/org02/repo02/subpkg02/file04.go", false},
 			},
-			opts: options{onlyCode: true, noTests: true},
+			opts: options{onlyCode: true, noTests: true, codeSuffixes: opts.codeSuffixes},
 		},
 		{
 			tree:     tree,
@@ -256,7 +256,7 @@ devImports: []
 				{"host02/org02/repo02/subpkg02/file04.go", false},
 				{"host02/org02/repo02/subpkg02/file04_test.go", false},
 			},
-			opts: options{onlyCode: true, noLegalFiles: true},
+			opts: options{onlyCode: true, noLegalFiles: true, codeSuffixes: opts.codeSuffixes},
 		},
 		{
 			tree:     tree,
@@ -304,7 +304,7 @@ devImports: []
 				{"host02/org02/repo02/subpkg02/file04.go", false},
 				{"host02/org02/repo02/subpkg02/file04_test.go", false},
 			},
-			opts: options{onlyCode: true},
+			opts: options{onlyCode: true, codeSuffixes: opts.codeSuffixes},
 		},
 		{
 			tree:     tree,
