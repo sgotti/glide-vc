@@ -1,27 +1,24 @@
-hash: 4460692ba6038fb0ebb734265b6d2887cfdee7efcfdd9ec1e2f6a203a972ee45
-updated: 2016-03-31T15:44:44.507573161+02:00
+hash: da61563f2eba8b569978a8d816f071db47b7fdf5748088e2d215d7d619b618cf
+updated: 2016-06-08T18:17:47.960732473+02:00
 imports:
+- name: github.com/bmatcuk/doublestar
+  version: ec3b4af762f792cb93bf2518ff9ac408dbdc2b4e
 - name: github.com/inconshreveable/mousetrap
-  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+  version: 423c3cfddf366f09e6b678510c2a63bb1417e3a0
 - name: github.com/Masterminds/glide
-  version: 7c3e752d4bc818f9f76e78e9c92de254782a9b0b
+  version: ""
   subpackages:
   - cfg
   - path
-  - importer
   - util
   - godep/strip
   - msg
-  - gb
-  - godep
-  - gom
-  - gpm
 - name: github.com/Masterminds/vcs
-  version: b22ee1673cdd03ef47bb0b422736a7f17ff0648c
+  version: 423c3cfddf366f09e6b678510c2a63bb1417e3a0
 - name: github.com/spf13/cobra
-  version: ee150b4fa235f90bd58abe1fc0d1dcef7e390356
+  version: 423c3cfddf366f09e6b678510c2a63bb1417e3a0
 - name: github.com/spf13/pflag
-  version: 7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7
+  version: 423c3cfddf366f09e6b678510c2a63bb1417e3a0
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 423c3cfddf366f09e6b678510c2a63bb1417e3a0
 devImports: []

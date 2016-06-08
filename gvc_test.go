@@ -95,6 +95,7 @@ func TestCleanup(t *testing.T) {
 		{"host01/org01/repo01/subpkg01/file11.hh", false},
 		{"host01/org01/repo01/subpkg01/file12.hpp", false},
 		{"host01/org01/repo01/subpkg01/file13.hxx", false},
+		{"host01/org01/repo01/subpkg01/file.json", false},
 		// Unneeded project inside nested vendor
 		{"host01/org01/repo01/vendor/host03/org03/repo03/LICENSE", false},
 		{"host01/org01/repo01/vendor/host03/org03/repo03/file05.go", false},
@@ -157,6 +158,7 @@ devImports: []
 				{"host01/org01/repo01/subpkg01/file11.hh", false},
 				{"host01/org01/repo01/subpkg01/file12.hpp", false},
 				{"host01/org01/repo01/subpkg01/file13.hxx", false},
+				{"host01/org01/repo01/subpkg01/file.json", false},
 				{"host01/org01/repo01/vendor", true},
 				{"host01/org01/repo01/vendor/host02", true},
 				{"host01/org01/repo01/vendor/host02/org02", true},
@@ -171,7 +173,7 @@ devImports: []
 				{"host02/org02/repo02/subpkg02", true},
 				{"host02/org02/repo02/subpkg02/file04.go", false},
 			},
-			opts: options{onlyCode: true, noTests: true, noLegalFiles: true},
+			opts: options{onlyCode: true, noTests: true, noLegalFiles: true, keepPatterns: []string{"**/*.json"}},
 		},
 
 		{
@@ -331,6 +333,7 @@ devImports: []
 				{"host01/org01/repo01/subpkg01/file11.hh", false},
 				{"host01/org01/repo01/subpkg01/file12.hpp", false},
 				{"host01/org01/repo01/subpkg01/file13.hxx", false},
+				{"host01/org01/repo01/subpkg01/file.json", false},
 				{"host01/org01/repo01/vendor", true},
 				{"host01/org01/repo01/vendor/host02", true},
 				{"host01/org01/repo01/vendor/host02/org02", true},

@@ -9,7 +9,7 @@ For a detailed explanation on why Glide doesn't do this see [here](http://engine
 ## Description
 
 This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep all the files provided by packages listed in the `glide.lock` file.
-If you want to keep only go (including tests) files you can provide the `--only-go` option.
+If you want to keep only go (including tests) files you can provide the `--only-code` option.
 If you want to remove also the go test files you can add the `--no-tests` option.
 
 By default `glide-vc` doesn't remove:
@@ -32,9 +32,10 @@ Usage:
 
 Flags:
       --dryrun           just output what will be removed
+      --keep value       A pattern to keep additional files inside needed packages. The pattern match will be relative to the deeper vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern. (default [])
       --no-legal-files   remove also licenses and legal files
-      --no-tests         remove also go test files (requires --only-go)
-      --only-go          keep only go files (including go test files)
+      --no-tests         remove also go test files (requires --only-code)
+      --only-code        keep only go files (including go test files)
 ```
 
 You have to run `glide-vc`, or (if glide is installed) `glide vc` inside your current project directory.
@@ -59,17 +60,17 @@ glide-vc
 Keep only go (including tests) file.
 
 ```
-glide-vc --only-go
+glide-vc --only-code
 ```
 
 Keep only non test go files.
 
 ```
-glide-vc --only-go --no-tests
+glide-vc --only-code --no-tests
 ```
 
 Keep only non test go files and also remove all licenses and legal files.
 
 ```
-glide-vc --only-go --no-tests --no-legal-files
+glide-vc --only-code --no-tests --no-legal-files
 ```
