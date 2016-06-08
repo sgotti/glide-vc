@@ -9,6 +9,7 @@ import (
 
 	"github.com/Masterminds/glide/cfg"
 	gpath "github.com/Masterminds/glide/path"
+	"github.com/bmatcuk/doublestar"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +24,7 @@ type options struct {
 	onlyCode     bool
 	noTests      bool
 	noLegalFiles bool
+	keepPatterns []string
 }
 
 var (
@@ -39,6 +41,7 @@ func init() {
 	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only go files (including go test files)")
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
+	cmd.PersistentFlags().StringSliceVar(&opts.keepPatterns, "keep", []string{}, "A pattern to keep additional files inside needed packages. The pattern match will be relative to the deeper vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern.")
 }
 
 func main() {
@@ -135,6 +138,17 @@ func cleanup(path string, opts options) error {
 					}
 					for _, suffix := range codeSuffixes {
 						if strings.HasSuffix(path, suffix) {
+							keep = true
+						}
+					}
+					// Match keep patterns
+					for _, keepPattern := range opts.keepPatterns {
+						ok, err := doublestar.Match(keepPattern, lastVendorPath)
+						// TODO(sgotti) if a bad pattern is encountered stop here. Actually there's no function to verify a pattern before using it, perhaps just a fake match at the start will work.
+						if err != nil {
+							return fmt.Errorf("bad pattern: %q", keepPattern)
+						}
+						if ok {
 							keep = true
 						}
 					}
