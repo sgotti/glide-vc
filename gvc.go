@@ -289,7 +289,7 @@ var LicenseFilePrefix = []string{
 
 // LegalFileSubstring are substrings that indicate the file is likely
 // to contain some type of legal declaration.  "legal" is often used
-// that it might moved to LicenseFilePrefix
+// that it might be moved to LicenseFilePrefix
 var LegalFileSubstring = []string{
 	"legal",
 	"notice",
@@ -304,12 +304,12 @@ var LegalFileSubstring = []string{
 func IsLegalFile(path string) bool {
 	lowerfile := strings.ToLower(filepath.Base(path))
 	for _, prefix := range LicenseFilePrefix {
-		if strings.HasPrefix(lowerfile, prefix) {
+		if strings.HasPrefix(lowerfile, prefix) && !strings.HasSuffix(lowerfile, goTestSuffix) {
 			return true
 		}
 	}
 	for _, substring := range LegalFileSubstring {
-		if strings.Index(lowerfile, substring) != -1 {
+		if strings.Index(lowerfile, substring) != -1 && !strings.HasSuffix(lowerfile, goTestSuffix) {
 			return true
 		}
 	}
