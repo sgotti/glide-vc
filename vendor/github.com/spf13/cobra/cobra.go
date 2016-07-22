@@ -26,7 +26,7 @@ import (
 	"unicode"
 )
 
-var templateFuncs template.FuncMap = template.FuncMap{
+var templateFuncs = template.FuncMap{
 	"trim":               strings.TrimSpace,
 	"trimRightSpace":     trimRightSpace,
 	"appendIfNotPresent": appendIfNotPresent,
@@ -39,7 +39,11 @@ var initializers []func()
 
 // automatic prefix matching can be a dangerous thing to automatically enable in CLI tools.
 // Set this to true to enable it
-var EnablePrefixMatching bool = false
+var EnablePrefixMatching = false
+
+//EnableCommandSorting controls sorting of the slice of commands, which is turned on by default.
+//To disable sorting, set it to false.
+var EnableCommandSorting = true
 
 //AddTemplateFunc adds a template function that's available to Usage and Help
 //template generation.

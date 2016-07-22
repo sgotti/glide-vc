@@ -1,6 +1,7 @@
 package cfg
 
 import (
+	"crypto/sha256"
 	"io/ioutil"
 	"sort"
 	"strings"
@@ -14,7 +15,7 @@ type Lockfile struct {
 	Hash       string    `yaml:"hash"`
 	Updated    time.Time `yaml:"updated"`
 	Imports    Locks     `yaml:"imports"`
-	DevImports Locks     `yaml:"devImports"`
+	DevImports Locks     `yaml:"testImports"`
 }
 
 // LockfileFromYaml returns an instance of Lockfile from YAML
@@ -45,8 +46,56 @@ func (lf *Lockfile) WriteFile(lockpath string) error {
 	return ioutil.WriteFile(lockpath, o, 0666)
 }
 
+// Clone returns a clone of Lockfile
+func (lf *Lockfile) Clone() *Lockfile {
+	n := &Lockfile{}
+	n.Hash = lf.Hash
+	n.Updated = lf.Updated
+	n.Imports = lf.Imports.Clone()
+	n.DevImports = lf.DevImports.Clone()
+
+	return n
+}
+
+// Fingerprint returns a hash of the contents minus the date. This allows for
+// two lockfiles to be compared irrespective of their updated times.
+func (lf *Lockfile) Fingerprint() ([32]byte, error) {
+	c := lf.Clone()
+	c.Updated = time.Time{} // Set the time to be the nil equivalent
+	sort.Sort(c.Imports)
+	sort.Sort(c.DevImports)
+	yml, err := c.Marshal()
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	return sha256.Sum256(yml), nil
+}
+
+// ReadLockFile loads the contents of a glide.lock file.
+func ReadLockFile(lockpath string) (*Lockfile, error) {
+	yml, err := ioutil.ReadFile(lockpath)
+	if err != nil {
+		return nil, err
+	}
+	lock, err := LockfileFromYaml(yml)
+	if err != nil {
+		return nil, err
+	}
+	return lock, nil
+}
+
 // Locks is a slice of locked dependencies.
 type Locks []*Lock
+
+// Clone returns a Clone of Locks.
+func (l Locks) Clone() Locks {
+	n := make(Locks, 0, len(l))
+	for _, v := range l {
+		n = append(n, v.Clone())
+	}
+	return n
+}
 
 // Len returns the length of the Locks. This is needed for sorting with
 // the sort package.
@@ -81,27 +130,52 @@ type Lock struct {
 	Os          []string `yaml:"os,omitempty"`
 }
 
+// Clone creates a clone of a Lock.
+func (l *Lock) Clone() *Lock {
+	return &Lock{
+		Name:        l.Name,
+		Version:     l.Version,
+		Repository:  l.Repository,
+		VcsType:     l.VcsType,
+		Subpackages: l.Subpackages,
+		Arch:        l.Arch,
+		Os:          l.Os,
+	}
+}
+
+// LockFromDependency converts a Dependency to a Lock
+func LockFromDependency(dep *Dependency) *Lock {
+	return &Lock{
+		Name:        dep.Name,
+		Version:     dep.Pin,
+		Repository:  dep.Repository,
+		VcsType:     dep.VcsType,
+		Subpackages: dep.Subpackages,
+		Arch:        dep.Arch,
+		Os:          dep.Os,
+	}
+}
+
 // NewLockfile is used to create an instance of Lockfile.
-func NewLockfile(ds Dependencies, hash string) *Lockfile {
+func NewLockfile(ds, tds Dependencies, hash string) *Lockfile {
 	lf := &Lockfile{
-		Hash:    hash,
-		Updated: time.Now(),
-		Imports: make([]*Lock, len(ds)),
+		Hash:       hash,
+		Updated:    time.Now(),
+		Imports:    make([]*Lock, len(ds)),
+		DevImports: make([]*Lock, len(tds)),
 	}
 
 	for i := 0; i < len(ds); i++ {
-		lf.Imports[i] = &Lock{
-			Name:        ds[i].Name,
-			Version:     ds[i].Pin,
-			Repository:  ds[i].Repository,
-			VcsType:     ds[i].VcsType,
-			Subpackages: ds[i].Subpackages,
-			Arch:        ds[i].Arch,
-			Os:          ds[i].Os,
-		}
+		lf.Imports[i] = LockFromDependency(ds[i])
 	}
 
 	sort.Sort(lf.Imports)
+
+	for i := 0; i < len(tds); i++ {
+		lf.DevImports[i] = LockFromDependency(tds[i])
+	}
+
+	sort.Sort(lf.DevImports)
 
 	return lf
 }
@@ -116,15 +190,8 @@ func LockfileFromMap(ds map[string]*Dependency, hash string) *Lockfile {
 
 	i := 0
 	for name, dep := range ds {
-		lf.Imports[i] = &Lock{
-			Name:        name,
-			Version:     dep.Pin,
-			Repository:  dep.Repository,
-			VcsType:     dep.VcsType,
-			Subpackages: dep.Subpackages,
-			Arch:        dep.Arch,
-			Os:          dep.Os,
-		}
+		lf.Imports[i] = LockFromDependency(dep)
+		lf.Imports[i].Name = name
 		i++
 	}
 

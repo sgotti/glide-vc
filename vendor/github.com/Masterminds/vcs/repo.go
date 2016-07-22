@@ -26,7 +26,6 @@
 package vcs
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -35,22 +34,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-)
-
-var (
-	// ErrWrongVCS is returned when an action is tried on the wrong VCS.
-	ErrWrongVCS = errors.New("Wrong VCS detected")
-
-	// ErrCannotDetectVCS is returned when VCS cannot be detected from URI string.
-	ErrCannotDetectVCS = errors.New("Cannot detect VCS")
-
-	// ErrWrongRemote occurs when the passed in remote does not match the VCS
-	// configured endpoint.
-	ErrWrongRemote = errors.New("The Remote does not match the VCS endpoint")
-
-	// ErrRevisionUnavailable happens when commit revision information is
-	// unavailable.
-	ErrRevisionUnavailable = errors.New("Revision unavailable")
 )
 
 // Logger is where you can provide a logger, implementing the log.Logger interface,
@@ -97,6 +80,9 @@ type Repo interface {
 	// Get is used to perform an initial clone/checkout of a repository.
 	Get() error
 
+	// Initializes a new repository locally.
+	Init() error
+
 	// Update performs an update to an existing checkout of a repository.
 	Update() error
 
@@ -105,6 +91,12 @@ type Repo interface {
 
 	// Version retrieves the current version.
 	Version() (string, error)
+
+	// Current retrieves the current version-ish. This is different from the
+	// Version method. The output could be a branch name if on the tip of a
+	// branch (git), a tag if on a tag, a revision if on a specific revision
+	// that's not the tip of the branch. The values here vary based on the VCS.
+	Current() (string, error)
 
 	// Date retrieves the date on the latest commit.
 	Date() (time.Time, error)
@@ -118,9 +110,6 @@ type Repo interface {
 	// Tags returns a list of available tags on the repository.
 	Tags() ([]string, error)
 
-	// TODO: Provide a consistent manner to get reference information across
-	// multiple VCS.
-
 	// IsReference returns if a string is a reference. A reference can be a
 	// commit id, branch, or tag.
 	IsReference(string) bool
@@ -131,6 +120,18 @@ type Repo interface {
 
 	// CommitInfo retrieves metadata about a commit.
 	CommitInfo(string) (*CommitInfo, error)
+
+	// TagsFromCommit retrieves tags from a commit id.
+	TagsFromCommit(string) ([]string, error)
+
+	// Ping returns if remote location is accessible.
+	Ping() bool
+
+	// RunFromDir executes a command from repo's directory.
+	RunFromDir(cmd string, args ...string) ([]byte, error)
+
+	// ExportDir exports the current revision to the passed in directory.
+	ExportDir(string) error
 }
 
 // NewRepo returns a Repo based on trying to detect the source control from the
@@ -219,7 +220,7 @@ func (b base) run(cmd string, args ...string) ([]byte, error) {
 	return out, err
 }
 
-func (b *base) runFromDir(cmd string, args ...string) ([]byte, error) {
+func (b *base) RunFromDir(cmd string, args ...string) ([]byte, error) {
 	c := exec.Command(cmd, args...)
 	c.Dir = b.local
 	c.Env = envForDir(c.Dir)
@@ -255,4 +256,12 @@ NextVar:
 		out = append(out, inkv)
 	}
 	return out
+}
+
+func depInstalled(name string) bool {
+	if _, err := exec.LookPath(name); err != nil {
+		return false
+	}
+
+	return true
 }

@@ -14,6 +14,10 @@ var hgDetectURL = regexp.MustCompile("default = (?P<foo>.+)\n")
 // NewHgRepo creates a new instance of HgRepo. The remote and local directories
 // need to be passed in.
 func NewHgRepo(remote, local string) (*HgRepo, error) {
+	ins := depInstalled("hg")
+	if !ins {
+		return nil, NewLocalError("hg is not installed", nil, "")
+	}
 	ltype, err := DetectVcsFromFS(local)
 
 	// Found a VCS other than Hg. Need to report an error.
@@ -36,7 +40,7 @@ func NewHgRepo(remote, local string) (*HgRepo, error) {
 		c.Env = envForDir(c.Dir)
 		out, err := c.CombinedOutput()
 		if err != nil {
-			return nil, err
+			return nil, NewLocalError("Unable to retrieve local repo information", err, string(out))
 		}
 
 		m := hgDetectURL.FindStringSubmatch(string(out))
@@ -66,31 +70,49 @@ func (s HgRepo) Vcs() Type {
 
 // Get is used to perform an initial clone of a repository.
 func (s *HgRepo) Get() error {
-	_, err := s.run("hg", "clone", s.Remote(), s.LocalPath())
-	return err
+	out, err := s.run("hg", "clone", s.Remote(), s.LocalPath())
+	if err != nil {
+		return NewRemoteError("Unable to get repository", err, string(out))
+	}
+	return nil
+}
+
+// Init will initialize a mercurial repository at local location.
+func (s *HgRepo) Init() error {
+	out, err := s.run("hg", "init", s.LocalPath())
+	if err != nil {
+		return NewLocalError("Unable to initialize repository", err, string(out))
+	}
+	return nil
 }
 
 // Update performs a Mercurial pull to an existing checkout.
 func (s *HgRepo) Update() error {
-	_, err := s.runFromDir("hg", "update")
-	return err
+	return s.UpdateVersion(``)
 }
 
 // UpdateVersion sets the version of a package currently checked out via Hg.
 func (s *HgRepo) UpdateVersion(version string) error {
-	_, err := s.runFromDir("hg", "pull")
+	out, err := s.RunFromDir("hg", "pull")
 	if err != nil {
-		return err
+		return NewLocalError("Unable to update checked out version", err, string(out))
 	}
-	_, err = s.runFromDir("hg", "update", version)
-	return err
+	if len(strings.TrimSpace(version)) > 0 {
+		out, err = s.RunFromDir("hg", "update", version)
+	} else {
+		out, err = s.RunFromDir("hg", "update")
+	}
+	if err != nil {
+		return NewLocalError("Unable to update checked out version", err, string(out))
+	}
+	return nil
 }
 
 // Version retrieves the current version.
 func (s *HgRepo) Version() (string, error) {
-	out, err := s.runFromDir("hg", "identify")
+	out, err := s.RunFromDir("hg", "--debug", "identify")
 	if err != nil {
-		return "", err
+		return "", NewLocalError("Unable to retrieve checked out version", err, string(out))
 	}
 
 	parts := strings.SplitN(string(out), " ", 2)
@@ -98,19 +120,56 @@ func (s *HgRepo) Version() (string, error) {
 	return strings.TrimSpace(sha), nil
 }
 
+// Current returns the current version-ish. This means:
+// * Branch name if on the tip of the branch
+// * Tag if on a tag
+// * Otherwise a revision id
+func (s *HgRepo) Current() (string, error) {
+	out, err := s.RunFromDir("hg", "branch")
+	if err != nil {
+		return "", err
+	}
+	branch := strings.TrimSpace(string(out))
+
+	tip, err := s.CommitInfo("max(branch(" + branch + "))")
+	if err != nil {
+		return "", err
+	}
+
+	curr, err := s.Version()
+	if err != nil {
+		return "", err
+	}
+
+	if tip.Commit == curr {
+
+		return branch, nil
+	}
+
+	ts, err := s.TagsFromCommit(curr)
+	if err != nil {
+		return "", err
+	}
+	if len(ts) > 0 {
+		return ts[0], nil
+	}
+
+	return curr, nil
+}
+
 // Date retrieves the date on the latest commit.
 func (s *HgRepo) Date() (time.Time, error) {
 	version, err := s.Version()
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, NewLocalError("Unable to retrieve revision date", err, "")
 	}
-	out, err := s.runFromDir("hg", "log", "-r", version, "--template", "{date|isodatesec}")
+	out, err := s.RunFromDir("hg", "log", "-r", version, "--template", "{date|isodatesec}")
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, NewLocalError("Unable to retrieve revision date", err, string(out))
 	}
 	t, err := time.Parse(longForm, string(out))
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, NewLocalError("Unable to retrieve revision date", err, string(out))
 	}
 	return t, nil
 }
@@ -126,9 +185,9 @@ func (s *HgRepo) CheckLocal() bool {
 
 // Branches returns a list of available branches
 func (s *HgRepo) Branches() ([]string, error) {
-	out, err := s.runFromDir("hg", "branches")
+	out, err := s.RunFromDir("hg", "branches")
 	if err != nil {
-		return []string{}, err
+		return []string{}, NewLocalError("Unable to retrieve branches", err, string(out))
 	}
 	branches := s.referenceList(string(out), `(?m-s)^(\S+)`)
 	return branches, nil
@@ -136,9 +195,9 @@ func (s *HgRepo) Branches() ([]string, error) {
 
 // Tags returns a list of available tags
 func (s *HgRepo) Tags() ([]string, error) {
-	out, err := s.runFromDir("hg", "tags")
+	out, err := s.RunFromDir("hg", "tags")
 	if err != nil {
-		return []string{}, err
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
 	}
 	tags := s.referenceList(string(out), `(?m-s)^(\S+)`)
 	return tags, nil
@@ -147,7 +206,7 @@ func (s *HgRepo) Tags() ([]string, error) {
 // IsReference returns if a string is a reference. A reference can be a
 // commit id, branch, or tag.
 func (s *HgRepo) IsReference(r string) bool {
-	_, err := s.runFromDir("hg", "log", "-r", r)
+	_, err := s.RunFromDir("hg", "log", "-r", r)
 	if err == nil {
 		return true
 	}
@@ -158,13 +217,13 @@ func (s *HgRepo) IsReference(r string) bool {
 // IsDirty returns if the checkout has been modified from the checked
 // out reference.
 func (s *HgRepo) IsDirty() bool {
-	out, err := s.runFromDir("hg", "diff")
+	out, err := s.RunFromDir("hg", "diff")
 	return err != nil || len(out) != 0
 }
 
 // CommitInfo retrieves metadata about a commit.
 func (s *HgRepo) CommitInfo(id string) (*CommitInfo, error) {
-	out, err := s.runFromDir("hg", "log", "-r", id, "--style=xml")
+	out, err := s.RunFromDir("hg", "log", "-r", id, "--style=xml")
 	if err != nil {
 		return nil, ErrRevisionUnavailable
 	}
@@ -187,7 +246,7 @@ func (s *HgRepo) CommitInfo(id string) (*CommitInfo, error) {
 	logs := &Log{}
 	err = xml.Unmarshal(out, &logs)
 	if err != nil {
-		return nil, err
+		return nil, NewLocalError("Unable to retrieve commit information", err, string(out))
 	}
 	if len(logs.Logs) == 0 {
 		return nil, ErrRevisionUnavailable
@@ -202,9 +261,65 @@ func (s *HgRepo) CommitInfo(id string) (*CommitInfo, error) {
 	if logs.Logs[0].Date != "" {
 		ci.Date, err = time.Parse(time.RFC3339, logs.Logs[0].Date)
 		if err != nil {
-			return nil, err
+			return nil, NewLocalError("Unable to retrieve commit information", err, string(out))
 		}
 	}
 
 	return ci, nil
+}
+
+// TagsFromCommit retrieves tags from a commit id.
+func (s *HgRepo) TagsFromCommit(id string) ([]string, error) {
+	// Hg has a single tag per commit. If a second tag is added to a commit a
+	// new commit is created and the tag is attached to that new commit.
+	out, err := s.RunFromDir("hg", "log", "-r", id, "--style=xml")
+	if err != nil {
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
+	}
+
+	type Logentry struct {
+		Node string `xml:"node,attr"`
+		Tag  string `xml:"tag"`
+	}
+	type Log struct {
+		XMLName xml.Name   `xml:"log"`
+		Logs    []Logentry `xml:"logentry"`
+	}
+
+	logs := &Log{}
+	err = xml.Unmarshal(out, &logs)
+	if err != nil {
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
+	}
+	if len(logs.Logs) == 0 {
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
+	}
+
+	t := strings.TrimSpace(logs.Logs[0].Tag)
+	if t != "" {
+		return []string{t}, nil
+	}
+	return []string{}, nil
+}
+
+// Ping returns if remote location is accessible.
+func (s *HgRepo) Ping() bool {
+	_, err := s.run("hg", "identify", s.Remote())
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+// ExportDir exports the current revision to the passed in directory.
+func (s *HgRepo) ExportDir(dir string) error {
+
+	out, err := s.RunFromDir("hg", "archive", dir)
+	s.log(out)
+	if err != nil {
+		return NewLocalError("Unable to export source", err, string(out))
+	}
+
+	return nil
 }
