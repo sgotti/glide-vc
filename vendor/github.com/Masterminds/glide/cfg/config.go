@@ -51,7 +51,7 @@ type Config struct {
 
 	// DevImports contains the test or other development imports for a project.
 	// See the Dependency type for more details on how this is recorded.
-	DevImports Dependencies `yaml:"devimport,omitempty"`
+	DevImports Dependencies `yaml:"testImport,omitempty"`
 }
 
 // A transitive representation of a dependency for importing and exporting to yaml.
@@ -64,7 +64,7 @@ type cf struct {
 	Ignore      []string     `yaml:"ignore,omitempty"`
 	Exclude     []string     `yaml:"excludeDirs,omitempty"`
 	Imports     Dependencies `yaml:"import"`
-	DevImports  Dependencies `yaml:"devimport,omitempty"`
+	DevImports  Dependencies `yaml:"testImport,omitempty"`
 }
 
 // ConfigFromYaml returns an instance of Config from YAML
@@ -298,6 +298,33 @@ func (d Dependencies) Get(name string) *Dependency {
 	return nil
 }
 
+// Has checks if a dependency is on a list of dependencies such as import or testImport
+func (d Dependencies) Has(name string) bool {
+	for _, dep := range d {
+		if dep.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Remove removes a dependency from a list of dependencies
+func (d Dependencies) Remove(name string) Dependencies {
+	found := -1
+	for i, dep := range d {
+		if dep.Name == name {
+			found = i
+		}
+	}
+
+	if found >= 0 {
+		copy(d[found:], d[found+1:])
+		d[len(d)-1] = nil
+		return d[:len(d)-1]
+	}
+	return d
+}
+
 // Clone performs a deep clone of Dependencies
 func (d Dependencies) Clone() Dependencies {
 	n := make(Dependencies, 0, len(d))
@@ -361,6 +388,19 @@ type dep struct {
 	Subpackages []string `yaml:"subpackages,omitempty"`
 	Arch        []string `yaml:"arch,omitempty"`
 	Os          []string `yaml:"os,omitempty"`
+}
+
+// DependencyFromLock converts a Lock to a Dependency
+func DependencyFromLock(lock *Lock) *Dependency {
+	return &Dependency{
+		Name:        lock.Name,
+		Reference:   lock.Version,
+		Repository:  lock.Repository,
+		VcsType:     lock.VcsType,
+		Subpackages: lock.Subpackages,
+		Arch:        lock.Arch,
+		Os:          lock.Os,
+	}
 }
 
 // UnmarshalYAML is a hook for gopkg.in/yaml.v2 in the unmarshaling process

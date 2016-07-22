@@ -20,11 +20,12 @@ var cmd = &cobra.Command{
 }
 
 type options struct {
-	dryrun       bool
-	onlyCode     bool
-	noTests      bool
-	noLegalFiles bool
-	keepPatterns []string
+	dryrun        bool
+	onlyCode      bool
+	noTests       bool
+	noTestImports bool
+	noLegalFiles  bool
+	keepPatterns  []string
 }
 
 var (
@@ -39,6 +40,7 @@ const (
 func init() {
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
 	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only go files (including go test files)")
+	cmd.PersistentFlags().BoolVar(&opts.noTestImports, "no-test-imports", false, "remove also testImport vendor directories")
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
 	cmd.PersistentFlags().StringSliceVar(&opts.keepPatterns, "keep", []string{}, "A pattern to keep additional files inside needed packages. The pattern match will be relative to the deeper vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern.")
@@ -71,23 +73,28 @@ func cleanup(path string, opts options) error {
 	// path separator, needed for future comparisons.
 	pkgList := []string{}
 	repoList := []string{}
-	// TODO(sgotti) Should we also consider devImports?
-	for _, imp := range lock.Imports {
-		// This converts pkg separator "/" to os specific separator
-		repoList = append(repoList, filepath.FromSlash(imp.Name))
+	adder := func(lock cfg.Locks) {
+		for _, imp := range lock {
+			// This converts pkg separator "/" to os specific separator
+			repoList = append(repoList, filepath.FromSlash(imp.Name))
 
-		if len(imp.Subpackages) > 0 {
-			for _, sp := range imp.Subpackages {
-				// This converts pkg separator "/" to os specific separator
-				pkgList = append(pkgList, filepath.Join(imp.Name, sp))
+			if len(imp.Subpackages) > 0 {
+				for _, sp := range imp.Subpackages {
+					// This converts pkg separator "/" to os specific separator
+					pkgList = append(pkgList, filepath.Join(imp.Name, sp))
+				}
 			}
-		}
-		// TODO(sgotti) we cannot skip the base import if it has subpackages
-		// because glide doesn't write "." as a subpackage, otherwise if some
-		// files in the base import are needed they will be removed.
+			// TODO(sgotti) we cannot skip the base import if it has subpackages
+			// because glide doesn't write "." as a subpackage, otherwise if some
+			// files in the base import are needed they will be removed.
 
-		// This converts pkg separator "/" to os specific separator
-		pkgList = append(pkgList, filepath.FromSlash(imp.Name))
+			// This converts pkg separator "/" to os specific separator
+			pkgList = append(pkgList, filepath.FromSlash(imp.Name))
+		}
+	}
+	adder(lock.Imports)
+	if !opts.noTestImports {
+		adder(lock.DevImports)
 	}
 
 	vpath, err := gpath.Vendor()

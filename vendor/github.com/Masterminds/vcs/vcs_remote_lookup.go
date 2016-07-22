@@ -88,11 +88,9 @@ func detectVcsFromRemote(vcsURL string) (Type, string, error) {
 	t, e := detectVcsFromURL(vcsURL)
 	if e == nil {
 		return t, vcsURL, nil
+	} else if e != ErrCannotDetectVCS {
+		return NoVCS, "", e
 	}
-
-	// Need to test for vanity or paths like golang.org/x/
-
-	// TODO: Test for 3xx redirect codes and handle appropriately.
 
 	// Pages like https://golang.org/x/net provide an html document with
 	// meta tags containing a location to work with. The go tool uses
@@ -117,10 +115,19 @@ func detectVcsFromRemote(vcsURL string) (Type, string, error) {
 		return NoVCS, "", ErrCannotDetectVCS
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 404 {
+			return NoVCS, "", NewRemoteError(fmt.Sprintf("%s Not Found", vcsURL), nil, "")
+		} else if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			return NoVCS, "", NewRemoteError(fmt.Sprintf("%s Access Denied", vcsURL), nil, "")
+		}
+		return NoVCS, "", ErrCannotDetectVCS
+	}
 
 	t, nu, err := parseImportFromBody(u, resp.Body)
 	if err != nil {
-		return NoVCS, "", err
+		// TODO(mattfarina): Log the parsing error
+		return NoVCS, "", ErrCannotDetectVCS
 	} else if t == "" || nu == "" {
 		return NoVCS, "", ErrCannotDetectVCS
 	}
@@ -202,6 +209,10 @@ func detectVcsFromURL(vcsURL string) (Type, error) {
 		}
 		t, err := v.addCheck(info, u)
 		if err != nil {
+			switch err.(type) {
+			case *RemoteError:
+				return "", err
+			}
 			return "", ErrCannotDetectVCS
 		}
 
@@ -299,6 +310,11 @@ func get(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == 404 {
+			return nil, NewRemoteError("Not Found", err, resp.Status)
+		} else if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			return nil, NewRemoteError("Access Denied", err, resp.Status)
+		}
 		return nil, fmt.Errorf("%s: %s", url, resp.Status)
 	}
 	b, err := ioutil.ReadAll(resp.Body)

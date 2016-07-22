@@ -1,6 +1,8 @@
 package vcs
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +16,10 @@ var bzrDetectURL = regexp.MustCompile("parent branch: (?P<foo>.+)\n")
 // NewBzrRepo creates a new instance of BzrRepo. The remote and local directories
 // need to be passed in.
 func NewBzrRepo(remote, local string) (*BzrRepo, error) {
+	ins := depInstalled("bzr")
+	if !ins {
+		return nil, NewLocalError("bzr is not installed", nil, "")
+	}
 	ltype, err := DetectVcsFromFS(local)
 
 	// Found a VCS other than Bzr. Need to report an error.
@@ -39,7 +45,7 @@ func NewBzrRepo(remote, local string) (*BzrRepo, error) {
 		c.Env = envForDir(c.Dir)
 		out, err := c.CombinedOutput()
 		if err != nil {
-			return nil, err
+			return nil, NewLocalError("Unable to retrieve local repo information", err, string(out))
 		}
 		m := bzrDetectURL.FindStringSubmatch(string(out))
 
@@ -70,50 +76,120 @@ func (s *BzrRepo) Get() error {
 	if _, err := os.Stat(basePath); os.IsNotExist(err) {
 		err = os.MkdirAll(basePath, 0755)
 		if err != nil {
-			return err
+			return NewLocalError("Unable to create directory", err, "")
 		}
 	}
 
-	_, err := s.run("bzr", "branch", s.Remote(), s.LocalPath())
-	return err
+	out, err := s.run("bzr", "branch", s.Remote(), s.LocalPath())
+	if err != nil {
+		return NewRemoteError("Unable to get repository", err, string(out))
+	}
+
+	return nil
+}
+
+// Init initializes a bazaar repository at local location.
+func (s *BzrRepo) Init() error {
+	out, err := s.run("bzr", "init", s.LocalPath())
+
+	// There are some windows cases where bazaar cannot create the parent
+	// directory if it does not already exist, to the location it's trying
+	// to create the repo. Catch that error and try to handle it.
+	if err != nil && s.isUnableToCreateDir(err) {
+
+		basePath := filepath.Dir(filepath.FromSlash(s.LocalPath()))
+		if _, err := os.Stat(basePath); os.IsNotExist(err) {
+			err = os.MkdirAll(basePath, 0755)
+			if err != nil {
+				return NewLocalError("Unable to initialize repository", err, "")
+			}
+
+			out, err = s.run("bzr", "init", s.LocalPath())
+			if err != nil {
+				return NewLocalError("Unable to initialize repository", err, string(out))
+			}
+			return nil
+		}
+
+	} else if err != nil {
+		return NewLocalError("Unable to initialize repository", err, string(out))
+	}
+
+	return nil
 }
 
 // Update performs a Bzr pull and update to an existing checkout.
 func (s *BzrRepo) Update() error {
-	_, err := s.runFromDir("bzr", "pull")
+	out, err := s.RunFromDir("bzr", "pull")
 	if err != nil {
-		return err
+		return NewRemoteError("Unable to update repository", err, string(out))
 	}
-	_, err = s.runFromDir("bzr", "update")
-	return err
+	out, err = s.RunFromDir("bzr", "update")
+	if err != nil {
+		return NewRemoteError("Unable to update repository", err, string(out))
+	}
+	return nil
 }
 
 // UpdateVersion sets the version of a package currently checked out via Bzr.
 func (s *BzrRepo) UpdateVersion(version string) error {
-	_, err := s.runFromDir("bzr", "update", "-r", version)
-	return err
+	out, err := s.RunFromDir("bzr", "update", "-r", version)
+	if err != nil {
+		return NewLocalError("Unable to update checked out version", err, string(out))
+	}
+	return nil
 }
 
 // Version retrieves the current version.
 func (s *BzrRepo) Version() (string, error) {
 
-	out, err := s.runFromDir("bzr", "revno", "--tree")
+	out, err := s.RunFromDir("bzr", "revno", "--tree")
 	if err != nil {
-		return "", err
+		return "", NewLocalError("Unable to retrieve checked out version", err, string(out))
 	}
 
 	return strings.TrimSpace(string(out)), nil
 }
 
+// Current returns the current version-ish. This means:
+// * -1 if on the tip of the branch (this is the Bzr value for HEAD)
+// * A tag if on a tag
+// * Otherwise a revision
+func (s *BzrRepo) Current() (string, error) {
+	tip, err := s.CommitInfo("-1")
+	if err != nil {
+		return "", err
+	}
+
+	curr, err := s.Version()
+	if err != nil {
+		return "", err
+	}
+
+	if tip.Commit == curr {
+		return "-1", nil
+	}
+
+	ts, err := s.TagsFromCommit(curr)
+	if err != nil {
+		return "", err
+	}
+	if len(ts) > 0 {
+		return ts[0], nil
+	}
+
+	return curr, nil
+}
+
 // Date retrieves the date on the latest commit.
 func (s *BzrRepo) Date() (time.Time, error) {
-	out, err := s.runFromDir("bzr", "version-info", "--custom", "--template={date}")
+	out, err := s.RunFromDir("bzr", "version-info", "--custom", "--template={date}")
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, NewLocalError("Unable to retrieve revision date", err, string(out))
 	}
 	t, err := time.Parse(longForm, string(out))
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, NewLocalError("Unable to retrieve revision date", err, string(out))
 	}
 	return t, nil
 }
@@ -138,9 +214,9 @@ func (s *BzrRepo) Branches() ([]string, error) {
 
 // Tags returns a list of available tags on the repository.
 func (s *BzrRepo) Tags() ([]string, error) {
-	out, err := s.runFromDir("bzr", "tags")
+	out, err := s.RunFromDir("bzr", "tags")
 	if err != nil {
-		return []string{}, err
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
 	}
 	tags := s.referenceList(string(out), `(?m-s)^(\S+)`)
 	return tags, nil
@@ -149,7 +225,7 @@ func (s *BzrRepo) Tags() ([]string, error) {
 // IsReference returns if a string is a reference. A reference can be a
 // commit id or tag.
 func (s *BzrRepo) IsReference(r string) bool {
-	_, err := s.runFromDir("bzr", "revno", "-r", r)
+	_, err := s.RunFromDir("bzr", "revno", "-r", r)
 	if err == nil {
 		return true
 	}
@@ -160,21 +236,19 @@ func (s *BzrRepo) IsReference(r string) bool {
 // IsDirty returns if the checkout has been modified from the checked
 // out reference.
 func (s *BzrRepo) IsDirty() bool {
-	out, err := s.runFromDir("bzr", "diff")
+	out, err := s.RunFromDir("bzr", "diff")
 	return err != nil || len(out) != 0
 }
 
 // CommitInfo retrieves metadata about a commit.
 func (s *BzrRepo) CommitInfo(id string) (*CommitInfo, error) {
 	r := "-r" + id
-	out, err := s.runFromDir("bzr", "log", r, "--log-format=long")
+	out, err := s.RunFromDir("bzr", "log", r, "--log-format=long")
 	if err != nil {
 		return nil, ErrRevisionUnavailable
 	}
 
-	ci := &CommitInfo{
-		Commit: id,
-	}
+	ci := &CommitInfo{}
 	lines := strings.Split(string(out), "\n")
 	const format = "Mon 2006-01-02 15:04:05 -0700"
 	var track int
@@ -182,13 +256,15 @@ func (s *BzrRepo) CommitInfo(id string) (*CommitInfo, error) {
 
 	// Note, bzr does not appear to use i18m.
 	for i, l := range lines {
-		if strings.HasPrefix(l, "committer:") {
+		if strings.HasPrefix(l, "revno:") {
+			ci.Commit = strings.TrimSpace(strings.TrimPrefix(l, "revno:"))
+		} else if strings.HasPrefix(l, "committer:") {
 			ci.Author = strings.TrimSpace(strings.TrimPrefix(l, "committer:"))
 		} else if strings.HasPrefix(l, "timestamp:") {
 			ts := strings.TrimSpace(strings.TrimPrefix(l, "timestamp:"))
 			ci.Date, err = time.Parse(format, ts)
 			if err != nil {
-				return nil, err
+				return nil, NewLocalError("Unable to retrieve commit information", err, string(out))
 			}
 		} else if strings.TrimSpace(l) == "message:" {
 			track = i
@@ -205,4 +281,72 @@ func (s *BzrRepo) CommitInfo(id string) (*CommitInfo, error) {
 	}
 
 	return ci, nil
+}
+
+// TagsFromCommit retrieves tags from a commit id.
+func (s *BzrRepo) TagsFromCommit(id string) ([]string, error) {
+	out, err := s.RunFromDir("bzr", "tags", "-r", id)
+	if err != nil {
+		return []string{}, NewLocalError("Unable to retrieve tags", err, string(out))
+	}
+
+	tags := s.referenceList(string(out), `(?m-s)^(\S+)`)
+	return tags, nil
+}
+
+// Ping returns if remote location is accessible.
+func (s *BzrRepo) Ping() bool {
+
+	// Running bzr info is slow. Many of the projects are on launchpad which
+	// has a public 1.0 API we can use.
+	u, err := url.Parse(s.Remote())
+	if err == nil {
+		if u.Host == "launchpad.net" {
+			try := strings.TrimPrefix(u.Path, "/")
+
+			// get returns the body and an err. If the status code is not a 200
+			// an error is returned. Launchpad returns a 404 for a codebase that
+			// does not exist. Otherwise it returns a JSON object describing it.
+			_, er := get("https://api.launchpad.net/1.0/" + try)
+			if er == nil {
+				return true
+			}
+			return false
+		}
+	}
+
+	// This is the same command that Go itself uses but it's not fast (or fast
+	// enough by my standards). A faster method would be useful.
+	_, err = s.run("bzr", "info", s.Remote())
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+// ExportDir exports the current revision to the passed in directory.
+func (s *BzrRepo) ExportDir(dir string) error {
+	out, err := s.RunFromDir("bzr", "export", dir)
+	s.log(out)
+	if err != nil {
+		return NewLocalError("Unable to export source", err, string(out))
+	}
+
+	return nil
+}
+
+// Multi-lingual manner check for the VCS error that it couldn't create directory.
+// https://bazaar.launchpad.net/~bzr-pqm/bzr/bzr.dev/files/head:/po/
+func (s *BzrRepo) isUnableToCreateDir(err error) bool {
+	msg := err.Error()
+	if strings.HasPrefix(msg, fmt.Sprintf("Parent directory of %s does not exist.", s.LocalPath())) ||
+		strings.HasPrefix(msg, fmt.Sprintf("Nadřazený adresář %s neexistuje.", s.LocalPath())) ||
+		strings.HasPrefix(msg, fmt.Sprintf("El directorio padre de %s no existe.", s.LocalPath())) ||
+		strings.HasPrefix(msg, fmt.Sprintf("%s の親ディレクトリがありません。", s.LocalPath())) ||
+		strings.HasPrefix(msg, fmt.Sprintf("Родительская директория для %s не существует.", s.LocalPath())) {
+		return true
+	}
+
+	return false
 }
