@@ -137,7 +137,7 @@ func cleanup(path string, opts options) error {
 		keep := false
 		for _, name := range pkgList {
 			// If the file's parent directory is a needed package, keep it.
-			if !info.IsDir() && filepath.Dir(lastVendorPath) == name {
+			if !info.IsDir() && strings.HasPrefix(filepath.Dir(lastVendorPath), name) {
 				if opts.onlyCode {
 					if opts.noTests && strings.HasSuffix(path, "_test.go") {
 						keep = false
