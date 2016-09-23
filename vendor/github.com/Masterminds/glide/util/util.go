@@ -110,7 +110,7 @@ var remotePackageCache = make(map[string]string)
 
 func checkRemotePackageCache(pkg string) (string, bool) {
 	for k, v := range remotePackageCache {
-		if pkg == k {
+		if pkg == k || strings.HasPrefix(pkg, k+"/") {
 			return v, true
 		}
 	}
