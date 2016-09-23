@@ -12,11 +12,12 @@ platform:
 install:
 - go version
 - go env
+- go get github.com/Masterminds/glide
 
 build_script:
 - go build
 
 test_script:
-- go test .
+- PATH=$GOPATH/bin:$PATH go test .
 
 deploy: off
