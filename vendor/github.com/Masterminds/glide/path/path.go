@@ -21,6 +21,10 @@ const DefaultGlideFile = "glide.yaml"
 // As of Go 1.5, this is always vendor.
 var VendorDir = "vendor"
 
+// Tmp is the temporary directory Glide should use. Defaults to "" which
+// signals using the system default.
+var Tmp = ""
+
 // Cache the location of the homedirectory.
 var homeDir = ""
 
@@ -79,6 +83,29 @@ func Vendor() (string, error) {
 	}
 
 	gopath := filepath.Join(yamldir, VendorDir)
+
+	// Resolve symlinks
+	info, err := os.Lstat(gopath)
+	if err != nil {
+		return gopath, nil
+	}
+	for i := 0; IsLink(info) && i < 255; i++ {
+		p, err := os.Readlink(gopath)
+		if err != nil {
+			return gopath, nil
+		}
+
+		if filepath.IsAbs(p) {
+			gopath = p
+		} else {
+			gopath = filepath.Join(filepath.Dir(gopath), p)
+		}
+
+		info, err = os.Lstat(gopath)
+		if err != nil {
+			return gopath, nil
+		}
+	}
 
 	return gopath, nil
 }
@@ -208,7 +235,11 @@ func CopyDir(source string, dest string) error {
 		return err
 	}
 
-	d, _ := os.Open(source)
+	d, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
 
 	objects, err := d.Readdir(-1)
 
