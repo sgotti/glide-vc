@@ -442,11 +442,11 @@ func TestGetLastVendorPath(t *testing.T) {
 	}
 
 	for input, expected := range tests {
-		got, err := getLastVendorPath(input)
+		got, err := getLastVendorPath(filepath.FromSlash(input))
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		if got != expected {
+		if got != filepath.FromSlash(expected) {
 			t.Fatalf("got=%q, expected=%q", got, expected)
 		}
 	}
@@ -467,9 +467,9 @@ func TestIsParentDirectory(t *testing.T) {
 	}
 
 	for input, expected := range tests {
-		got := isParentDirectory(input.Parent, input.Child)
+		got := isParentDirectory(filepath.FromSlash(input.Parent), filepath.FromSlash(input.Child))
 		if got != expected {
-			t.Fatalf("got=%q, expected=%q", got, expected)
+			t.Fatalf("got=%t, expected=%t", got, expected)
 		}
 	}
 }
