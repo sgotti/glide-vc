@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +29,9 @@ func createVendorTree(t *testing.T, dir string, tree []FileInfo) error {
 			f, err := os.Create(path)
 			if err != nil {
 				return fmt.Errorf("failed to create file %q: %v", path, err)
+			}
+			if strings.HasSuffix(path, ".go") {
+				fmt.Fprintf(f, "package %s", filepath.Base(filepath.Dir(path)))
 			}
 			f.Close()
 		}
@@ -70,6 +74,7 @@ func checkExpectedVendor(t *testing.T, dir string, exp []FileInfo) error {
 type testData struct {
 	tree          []FileInfo
 	lockdata      string
+	mainfile      string
 	expectedFiles []FileInfo
 	opts          options
 }
@@ -134,13 +139,23 @@ imports:
   subpackages:
   - subpkg02
 devImports: []
-devImports: []
+`
+
+	mainfile := `package main
+
+import (
+	_ "host01/org01/repo01"
+	_ "host01/org01/repo01/subpkg01"
+	_ "host02/org02/repo02"
+	_ "host02/org02/repo02/subpkg02"
+)
 `
 
 	tests := []testData{
 		{
 			tree:     tree,
 			lockdata: lockdata,
+			mainfile: mainfile,
 			expectedFiles: []FileInfo{
 				{"host01", true},
 				{"host01/org01", true},
@@ -179,6 +194,7 @@ devImports: []
 		{
 			tree:     tree,
 			lockdata: lockdata,
+			mainfile: mainfile,
 			expectedFiles: []FileInfo{
 				{"host01", true},
 				{"host01/org01", true},
@@ -221,6 +237,7 @@ devImports: []
 		{
 			tree:     tree,
 			lockdata: lockdata,
+			mainfile: mainfile,
 			expectedFiles: []FileInfo{
 				{"host01", true},
 				{"host01/org01", true},
@@ -263,6 +280,7 @@ devImports: []
 		{
 			tree:     tree,
 			lockdata: lockdata,
+			mainfile: mainfile,
 			expectedFiles: []FileInfo{
 				{"host01", true},
 				{"host01/org01", true},
@@ -311,6 +329,7 @@ devImports: []
 		{
 			tree:     tree,
 			lockdata: lockdata,
+			mainfile: mainfile,
 			expectedFiles: []FileInfo{
 				{"host01", true},
 				{"host01/org01", true},
@@ -361,10 +380,13 @@ devImports: []
 		},
 	}
 
-	for i, td := range tests {
-		t.Logf("Test #%d", i)
-		if err := testCleanup(t, &td); err != nil {
-			t.Fatalf("#%d: unexpected error: %v", i, err)
+	for _, useLockFile := range []bool{false, true} {
+		for i, td := range tests {
+			t.Logf("Test #%d", i)
+			td.opts.useLockFile = useLockFile
+			if err := testCleanup(t, &td); err != nil {
+				t.Fatalf("#%d: unexpected error: %v", i, err)
+			}
 		}
 	}
 }
@@ -392,11 +414,17 @@ func testCleanup(t *testing.T, td *testData) error {
 		return fmt.Errorf("failed to create glide.lock file: %v", err)
 	}
 
+	// Create main.go file
+	if err := ioutil.WriteFile(filepath.Join(tmpDir, "main.go"), []byte(td.mainfile), 0666); err != nil {
+		return fmt.Errorf("failed to create main.go file: %v", err)
+	}
+
 	if err := createVendorTree(t, tmpDir, td.tree); err != nil {
 		return err
 	}
 
-	if err := cleanup(tmpDir, td.opts); err != nil {
+	opts = td.opts
+	if err := cleanup(tmpDir); err != nil {
 		return err
 	}
 
@@ -404,4 +432,44 @@ func testCleanup(t *testing.T, td *testData) error {
 		return err
 	}
 	return nil
+}
+
+func TestGetLastVendorPath(t *testing.T) {
+	tests := map[string]string{
+		"host1/org1/repo1":                                                 "host1/org1/repo1",
+		"host1/org1/repo1/vendor/host2/org2/repo2":                         "host2/org2/repo2",
+		"host1/org1/repo1/vendor/host2/org2/repo2/vendor/host3/org3/repo3": "host3/org3/repo3",
+	}
+
+	for input, expected := range tests {
+		got, err := getLastVendorPath(input)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if got != expected {
+			t.Fatalf("got=%q, expected=%q", got, expected)
+		}
+	}
+}
+
+func TestIsParentDirectory(t *testing.T) {
+	type testData2 struct {
+		Parent string
+		Child  string
+	}
+	tests := map[testData2]bool{
+		{"foo", "foo"}:     true,
+		{"foo", "foo/bar"}: true,
+		{"foo", "foobar"}:  false,
+		{"foo/", "foo"}:    true,
+		{"foo", "foo/"}:    true,
+		{"foo/", "foo/"}:   true,
+	}
+
+	for input, expected := range tests {
+		got := isParentDirectory(input.Parent, input.Child)
+		if got != expected {
+			t.Fatalf("got=%q, expected=%q", got, expected)
+		}
+	}
 }

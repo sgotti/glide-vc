@@ -8,6 +8,7 @@ go:
 sudo: false
 
 install:
+  - go get github.com/Masterminds/glide
   - GO15VENDOREXPERIMENT=1 go build
 
 script:

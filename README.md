@@ -8,7 +8,7 @@ For a detailed explanation on why Glide doesn't do this see [here](http://engine
 
 ## Description
 
-This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep all the files provided by packages listed in the `glide.lock` file.
+This tool will help you removing from the project vendor directories all the files not needed for building your project. By default it'll keep all the files provided by packages returned by the `glide list` command.
 If you want to keep only go (including tests) files you can provide the `--only-code` option.
 If you want to remove also the go test files you can add the `--no-tests` option.
 
