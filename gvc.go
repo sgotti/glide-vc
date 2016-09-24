@@ -50,13 +50,13 @@ const (
 
 func init() {
 	cmd.PersistentFlags().BoolVar(&opts.dryrun, "dryrun", false, "just output what will be removed")
-	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only go files (including go test files)")
+	cmd.PersistentFlags().BoolVar(&opts.onlyCode, "only-code", false, "keep only source code files (including go test files)")
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
 	cmd.PersistentFlags().StringSliceVar(&opts.keepPatterns, "keep", []string{}, "A pattern to keep additional files inside needed packages. The pattern match will be relative to the deeper vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern.")
 
 	cmd.PersistentFlags().BoolVar(&opts.useLockFile, "use-lock-file", false, "use glide.lock instead of glide list to determine imports")
-	cmd.PersistentFlags().BoolVar(&opts.noTestImports, "no-test-imports", false, "remove also testImport vendor directories")
+	cmd.PersistentFlags().BoolVar(&opts.noTestImports, "no-test-imports", false, "remove also testImport vendor directories. Works only with --use-lock-file")
 }
 
 func main() {
