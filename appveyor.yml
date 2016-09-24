@@ -18,6 +18,7 @@ build_script:
 - go build
 
 test_script:
-- PATH=$GOPATH/bin:$PATH go test .
+- set PATH=%PATH%;%GOPATH%\bin
+- go test .
 
 deploy: off

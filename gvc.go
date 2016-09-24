@@ -131,6 +131,9 @@ func cleanup(path string) error {
 	} else {
 		packages, err = glideListImports(path)
 	}
+	if err != nil {
+		return err
+	}
 
 	// The package list already have the path converted to the os specific
 	// path separator, needed for future comparisons.
@@ -187,7 +190,7 @@ func cleanup(path string) error {
 		keep := false
 
 		for _, name := range pkgList {
-			// If a directory is a needed package then keep it
+			// if a directory is a needed package then keep it
 			keep = keep || info.IsDir() && name == lastVendorPath
 
 			// The remaining tests are only for files
@@ -291,11 +294,11 @@ func getLastVendorPath(path string) (string, error) {
 }
 
 func isParentDirectory(parent, child string) bool {
-	if !strings.HasSuffix(parent, "/") {
-		parent += "/"
+	if !strings.HasSuffix(parent, string(filepath.Separator)) {
+		parent += string(filepath.Separator)
 	}
-	if !strings.HasSuffix(child, "/") {
-		child += "/"
+	if !strings.HasSuffix(child, string(filepath.Separator)) {
+		child += string(filepath.Separator)
 	}
 	return strings.HasPrefix(child, parent)
 }
