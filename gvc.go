@@ -65,12 +65,12 @@ func main() {
 
 func glidevc(cmd *cobra.Command, args []string) {
 	if opts.noTests && !opts.onlyCode {
-		fmt.Printf("--no-tests requires --only-code")
+		fmt.Fprintln(os.Stderr, "--no-tests requires --only-code")
 		os.Exit(1)
 	}
 
 	if err := cleanup("."); err != nil {
-		fmt.Print(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
