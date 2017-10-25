@@ -13,3 +13,6 @@ Session.vim
 #
 bin/
 /gopath/
+
+# gogland
+.idea/
