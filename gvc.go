@@ -22,11 +22,12 @@ var cmd = &cobra.Command{
 }
 
 type options struct {
-	dryrun       bool
-	onlyCode     bool
-	noTests      bool
-	noLegalFiles bool
-	keepPatterns []string
+	dryrun           bool
+	onlyCode         bool
+	noTests          bool
+	noLegalFiles     bool
+	keepPatterns     []string
+	keepFullPatterns []string
 
 	// Deprecated
 	useLockFile   bool
@@ -54,6 +55,7 @@ func init() {
 	cmd.PersistentFlags().BoolVar(&opts.noTests, "no-tests", false, "remove also go test files (requires --only-code)")
 	cmd.PersistentFlags().BoolVar(&opts.noLegalFiles, "no-legal-files", false, "remove also licenses and legal files")
 	cmd.PersistentFlags().StringSliceVar(&opts.keepPatterns, "keep", []string{}, "A pattern to keep additional files inside needed packages. The pattern match will be relative to the deeper vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern.")
+	cmd.PersistentFlags().StringSliceVar(&opts.keepFullPatterns, "keep-full", []string{}, "A pattern to keep additional files inside needed packages. The pattern match will be relative to the first vendor dir. Supports double star (**) patterns. (see https://golang.org/pkg/path/filepath/#Match and https://github.com/bmatcuk/doublestar). Can be specified multiple times. For example to keep all the files with json extension use the '**/*.json' pattern.")
 
 	cmd.PersistentFlags().BoolVar(&opts.useLockFile, "use-lock-file", false, "use glide.lock instead of glide list to determine imports")
 	cmd.PersistentFlags().BoolVar(&opts.noTestImports, "no-test-imports", false, "remove also testImport vendor directories. Works only with --use-lock-file")
@@ -188,6 +190,17 @@ func cleanup(path string) error {
 		lastVendorPathDir := filepath.Dir(lastVendorPath)
 
 		keep := false
+
+		// if someone specified a keep full pattern, we need to keep that file regardless of whether
+		// the package is used by code.
+		for _, keepPattern := range opts.keepFullPatterns {
+			ok, err := doublestar.Match(keepPattern, localPath)
+			// TODO(sgotti) if a bad pattern is encountered stop here. Actually there's no function to verify a pattern before using it, perhaps just a fake match at the start will work.
+			if err != nil {
+				return fmt.Errorf("bad pattern: %q", keepPattern)
+			}
+			keep = keep || ok
+		}
 
 		for _, name := range pkgList {
 			// if a directory is a needed package then keep it
