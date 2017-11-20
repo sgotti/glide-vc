@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -105,9 +107,27 @@ func glideLockImports(path string) ([]string, error) {
 }
 
 func glideListImports(path string) ([]string, error) {
-	cmd := exec.Command("glide", "list", "-output", "json", path)
+	cmd := exec.Command("glide", "--no-color", "list", "-output", "json", path)
 	out, err := cmd.Output()
 	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			scanner := bufio.NewScanner(bytes.NewReader(exitErr.Stderr))
+			inError := false
+			for scanner.Scan() {
+				line := scanner.Text()
+				switch {
+				case strings.HasPrefix(line, "[ERROR]"):
+					fmt.Println(line)
+					inError = true
+				case strings.HasPrefix(line, "["):
+					// starts with [INFO] or something not [ERROR]
+					inError = false
+				case inError:
+					fmt.Fprintln(os.Stderr, "[ERROR]", line)
+				}
+			}
+		}
+
 		return nil, err
 	}
 
